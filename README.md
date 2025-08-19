@@ -26,8 +26,8 @@ A smart Instagram automation tool that helps you unfollow non-mutual accounts (a
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/yourusername/instagram-unfollow-bot.git
-   cd instagram-unfollow-bot
+   git clone https://github.com/yourusername/bot-unfollow-ig.git
+   cd bot-unfollow-ig
    ```
 
 2. **Install dependencies**
@@ -98,7 +98,7 @@ After each run, you'll get detailed statistics:
 ### Project Structure
 
 ```
-instagram-unfollow-bot/
+folder structure:
 ├── app.js           # Main bot logic
 ├── main.js          # Electron main process
 ├── index.html       # UI interface

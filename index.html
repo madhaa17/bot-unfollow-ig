@@ -6,41 +6,404 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';" />
 
-    <title>Instagram Unfollower</title>
+    <title>Instagram Unfollow Bot</title>
     <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
       body {
-        font-family: Arial, sans-serif;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(
+          135deg,
+          #1a1a2e 0%,
+          #16213e 50%,
+          #0f3460 100%
+        );
+        min-height: 100vh;
         padding: 20px;
+        color: #fff;
+        overflow-x: hidden;
       }
-      input,
-      button {
-        padding: 8px;
-        margin: 5px 0;
+
+      .container {
+        display: grid;
+        grid-template-columns: 400px 1fr;
+        grid-gap: 25px;
+        max-width: 1600px;
+        margin: 0 auto;
+        height: calc(100vh - 40px);
+        min-height: 600px;
+      }
+
+      .control-panel {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        padding: 25px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(10px);
+        height: fit-content;
+        max-height: calc(100vh - 60px);
+        overflow-y: auto;
+        position: sticky;
+        top: 20px;
+      }
+
+      .log-panel {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        padding: 25px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(10px);
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+
+      .title {
+        font-size: 1.8rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #00d4ff 0%, #090979 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 8px;
+        text-align: center;
+      }
+
+      .subtitle {
+        text-align: center;
+        color: #b8c5d6;
+        margin-bottom: 25px;
+        font-size: 0.9rem;
+      }
+
+      .form-group {
+        margin-bottom: 18px;
+      }
+
+      .form-label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 600;
+        color: #e1e8f0;
+        font-size: 0.85rem;
+      }
+
+      input {
         width: 100%;
+        padding: 12px 16px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+        font-size: 14px;
+        transition: all 0.3s ease;
+        background: rgba(255, 255, 255, 0.05);
+        color: #fff;
       }
-      ul {
+
+      input:focus {
+        outline: none;
+        border-color: #00d4ff;
+        background: rgba(255, 255, 255, 0.1);
+        box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.2);
+      }
+
+      input::placeholder {
+        color: #8892a0;
+      }
+
+      button {
+        width: 100%;
+        padding: 12px;
+        background: linear-gradient(135deg, #00d4ff 0%, #090979 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-top: 8px;
+      }
+
+      button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(0, 212, 255, 0.3);
+      }
+
+      button:active {
+        transform: translateY(0);
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .log-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+        flex-shrink: 0;
+      }
+
+      .log-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #fff;
+      }
+
+      .log-status {
+        background: #28a745;
+        color: white;
+        padding: 4px 12px;
+        border-radius: 15px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      #log-container {
+        flex: 1;
+        background: #0d1117;
+        border-radius: 12px;
+        padding: 15px;
+        overflow-y: auto;
+        font-family: "Consolas", "Monaco", "Courier New", monospace;
+        font-size: 13px;
+        line-height: 1.4;
+        color: #58a6ff;
+        border: 1px solid #30363d;
+        min-height: 300px;
+        max-height: none;
+        word-wrap: break-word;
+        white-space: pre-wrap;
+      }
+
+      #log-container::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      #log-container::-webkit-scrollbar-track {
+        background: #21262d;
+        border-radius: 3px;
+      }
+
+      #log-container::-webkit-scrollbar-thumb {
+        background: #58a6ff;
+        border-radius: 3px;
+      }
+
+      #log-container::-webkit-scrollbar-thumb:hover {
+        background: #79c0ff;
+      }
+
+      .feature-list {
         margin-top: 20px;
+        padding-top: 15px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .feature-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+        font-size: 0.8rem;
+        color: #b8c5d6;
+      }
+
+      .feature-icon {
+        margin-right: 8px;
+        font-size: 1rem;
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-gap: 12px;
+        margin-top: 15px;
+      }
+
+      .stat-card {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 12px;
+        border-radius: 8px;
+        text-align: center;
+      }
+
+      .stat-number {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #00d4ff;
+      }
+
+      .stat-label {
+        font-size: 0.7rem;
+        color: #8892a0;
+        margin-top: 3px;
+      }
+
+      .initial-message {
+        text-align: center;
+        color: #8892a0;
+        margin-top: 40px;
+        line-height: 1.6;
+      }
+
+      /* Responsive Design */
+      @media (max-width: 1200px) {
+        .container {
+          grid-template-columns: 350px 1fr;
+        }
+      }
+
+      @media (max-width: 1024px) {
+        .container {
+          grid-template-columns: 1fr;
+          grid-gap: 20px;
+          height: auto;
+        }
+
+        .control-panel {
+          position: static;
+          max-height: none;
+        }
+
+        .log-panel {
+          min-height: 400px;
+        }
+      }
+
+      @media (max-width: 768px) {
+        body {
+          padding: 15px;
+        }
+
+        .container {
+          grid-gap: 15px;
+        }
+
+        .control-panel,
+        .log-panel {
+          padding: 20px;
+        }
+
+        .title {
+          font-size: 1.5rem;
+        }
+
+        .stats-grid {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
   <body>
-    <h2>Instagram Unfollow Bot</h2>
-    <form id="bot-form">
-      <input type="text" id="username" placeholder="Username" required />
-      <input type="password" id="password" placeholder="Password" required />
-      <input type="number" id="limit" placeholder="Limit Unfollow" required />
-      <button type="submit">Start</button>
-    </form>
-    <h3>Logs</h3>
-    <div
-      id="log-container"
-      style="
-        height: 200px;
-        overflow-y: auto;
-        background: #111;
-        color: #0f0;
-        padding: 10px;
-      "></div>
+    <div class="container">
+      <!-- Control Panel -->
+      <div class="control-panel">
+        <h1 class="title">🤖 Instagram Bot</h1>
+        <p class="subtitle">Smart Unfollow Automation</p>
+
+        <form id="bot-form">
+          <div class="form-group">
+            <label class="form-label">👤 Instagram Username</label>
+            <input
+              type="text"
+              id="username"
+              placeholder="Enter your username"
+              required />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">🔒 Password</label>
+            <input
+              type="password"
+              id="password"
+              placeholder="Enter your password"
+              required />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">🎯 Unfollow Limit</label>
+            <input
+              type="number"
+              id="limit"
+              placeholder="How many accounts to unfollow?"
+              min="1"
+              max="100"
+              required />
+          </div>
+
+          <button type="submit">🚀 Start Bot</button>
+        </form>
+
+        <!-- Features List -->
+        <div class="feature-list">
+          <div class="feature-item">
+            <span class="feature-icon">🎯</span>
+            <span>Smart mutual detection</span>
+          </div>
+          <div class="feature-item">
+            <span class="feature-icon">🛡️</span>
+            <span>Safe rate limiting</span>
+          </div>
+          <div class="feature-item">
+            <span class="feature-icon">💾</span>
+            <span>Session persistence</span>
+          </div>
+          <div class="feature-item">
+            <span class="feature-icon">📊</span>
+            <span>Progress tracking</span>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-number" id="followers-count">-</div>
+            <div class="stat-label">Followers</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="following-count">-</div>
+            <div class="stat-label">Following</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="processed-count">-</div>
+            <div class="stat-label">Processed</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="unfollowed-count">-</div>
+            <div class="stat-label">Unfollowed</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Log Panel -->
+      <div class="log-panel">
+        <div class="log-header">
+          <h2 class="log-title">📊 Real-time Logs</h2>
+          <div class="log-status">READY</div>
+        </div>
+
+        <div id="log-container">
+          <div class="initial-message">
+            🤖 Bot is ready to start...<br />
+            📝 Logs will appear here in real-time<br />
+            🚀 Click "Start Bot" to begin
+          </div>
+        </div>
+      </div>
+    </div>
 
     <script src="./render.js"></script>
   </body>
