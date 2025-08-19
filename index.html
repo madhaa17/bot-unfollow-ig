@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';" />
+
+    <title>Instagram Unfollower</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        padding: 20px;
+      }
+      input,
+      button {
+        padding: 8px;
+        margin: 5px 0;
+        width: 100%;
+      }
+      ul {
+        margin-top: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Instagram Unfollow Bot</h2>
+    <form id="bot-form">
+      <input type="text" id="username" placeholder="Username" required />
+      <input type="password" id="password" placeholder="Password" required />
+      <input type="number" id="limit" placeholder="Limit Unfollow" required />
+      <button type="submit">Start</button>
+    </form>
+    <h3>Logs</h3>
+    <div
+      id="log-container"
+      style="
+        height: 200px;
+        overflow-y: auto;
+        background: #111;
+        color: #0f0;
+        padding: 10px;
+      "></div>
+
+    <script src="./render.js"></script>
+  </body>
+</html>
