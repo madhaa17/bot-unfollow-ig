@@ -1,0 +1,70 @@
+{
+  "name": "instagram-unfollow-bot",
+  "version": "1.0.0",
+  "description": "Smart Instagram automation tool that unfollows non-mutual accounts while preserving mutual connections",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron main.js",
+    "dev": "electron main.js --dev",
+    "build": "electron-builder",
+    "dist": "electron-builder --publish=never"
+  },
+  "keywords": [
+    "instagram",
+    "automation",
+    "unfollow",
+    "social-media",
+    "electron",
+    "puppeteer",
+    "bot",
+    "instagram-bot",
+    "social-media-automation"
+  ],
+  "author": {
+    "name": "Your Name",
+    "email": "your.email@example.com",
+    "url": "https://github.com/yourusername"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/instagram-unfollow-bot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/instagram-unfollow-bot/issues"
+  },
+  "homepage": "https://github.com/yourusername/instagram-unfollow-bot#readme",
+  "engines": {
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
+  },
+  "dependencies": {
+    "electron": "^latest",
+    "puppeteer": "^latest"
+  },
+  "devDependencies": {
+    "electron-builder": "^latest"
+  },
+  "build": {
+    "appId": "com.yourname.instagram-unfollow-bot",
+    "productName": "Instagram Unfollow Bot",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!sessions/",
+      "!dist/",
+      "!node_modules/.cache/"
+    ],
+    "mac": {
+      "category": "public.app-category.social-networking"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}
