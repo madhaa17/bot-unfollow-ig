@@ -39,11 +39,11 @@
     "npm": ">=6.0.0"
   },
   "dependencies": {
-    "electron": "^latest",
-    "puppeteer": "^latest"
+    "electron": "^29.0.0",
+    "puppeteer": "^22.0.0"
   },
   "devDependencies": {
-    "electron-builder": "^latest"
+    "electron-builder": "^24.6.0"
   },
   "build": {
     "appId": "com.yourname.instagram-unfollow-bot",
