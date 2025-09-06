@@ -97,7 +97,6 @@ A smart Instagram automation tool that helps you unfollow non-mutual accounts (a
 - **No Fixed Limits**: Adapts to Instagram's lazy loading system
 - **End Detection**: Automatically detects when no more content is available
 - **Efficient Processing**: Optimized scroll amounts and timing
-- **Large List Support**: Handles accounts with 4000+ followers/following
 - **Progress Tracking**: Real-time progress updates during extraction
 
 ### 📈 Performance Optimization
@@ -220,12 +219,6 @@ This tool is for educational purposes only. Users are responsible for:
 - **Solution**: The bot now uses multiple detection methods
 - **What to do**: Verified accounts should now be automatically skipped
 
-#### Large Lists (4000+ users) Not Working
-
-- **Status**: ✅ **FIXED** - Dynamic scrolling now handles large lists
-- **Solution**: The bot now adapts to Instagram's lazy loading system
-- **What to do**: Large lists should now work without issues
-
 ### Performance Issues
 
 #### Slow Processing
@@ -256,7 +249,6 @@ This tool is for educational purposes only. Users are responsible for:
 
 - **Fixed**: `net::ERR_ABORTED` error with improved navigation handling
 - **Fixed**: Verified accounts not being skipped
-- **Fixed**: Large lists (4000+ users) not working properly
 - **Fixed**: Console error spam with smart filtering
 - **Fixed**: Memory usage issues with large datasets
 
