@@ -12,6 +12,11 @@ A smart Instagram automation tool that helps you unfollow non-mutual accounts (a
 - 📱 **Modern UI**: Clean Electron-based desktop interface
 - ⚡ **Fast Performance**: Direct profile approach bypasses modal scrolling issues
 - 🌍 **Multi-language**: Supports English and Indonesian interface
+- 🔵 **Verified Account Protection**: Automatically skips verified accounts (blue checkmark)
+- 🧹 **Clean Logging**: Filters out harmless errors for cleaner output
+- 🔄 **Dynamic Scrolling**: Adapts to Instagram's lazy loading without fixed limits
+- 📈 **Performance Optimization**: Cached data extraction and efficient processing
+- 🛠️ **Robust Error Handling**: Retry mechanisms and graceful error recovery
 
 ## 🚀 Quick Start
 
@@ -52,19 +57,56 @@ A smart Instagram automation tool that helps you unfollow non-mutual accounts (a
 ## 🛡️ Safety Features
 
 - **Mutual Protection**: Never unfollows accounts that follow you back
+- **Verified Account Protection**: Automatically skips verified accounts (blue checkmark)
 - **Rate Limiting**: Built-in delays to avoid Instagram detection
 - **Session Management**: Secure session storage
-- **Error Handling**: Robust error recovery
+- **Error Handling**: Robust error recovery with retry mechanisms
 - **Resume Capability**: Can continue from where it left off
+- **Smart Detection**: Advanced algorithms to detect account verification status
 
 ## 📋 How It Works
 
 1. **Authentication**: Logs into Instagram using your credentials
-2. **Data Collection**: Extracts complete followers and following lists
+2. **Data Collection**: Extracts complete followers and following lists with dynamic scrolling
 3. **Analysis**: Compares lists to identify non-mutual accounts
-4. **Smart Unfollow**: Visits each non-mutual account's profile directly
-5. **Confirmation**: Handles unfollow confirmations automatically
-6. **Progress Saving**: Tracks processed accounts for future runs
+4. **Verified Account Detection**: Automatically detects and skips verified accounts
+5. **Smart Unfollow**: Visits each non-mutual account's profile directly
+6. **Confirmation**: Handles unfollow confirmations automatically
+7. **Progress Saving**: Tracks processed accounts for future runs
+
+## 🔧 Advanced Features
+
+### 🔵 Verified Account Protection
+
+- **Automatic Detection**: Uses multiple detection methods to identify verified accounts
+- **Blue Checkmark Recognition**: Detects Instagram's official verification badges
+- **Text Analysis**: Scans for verification-related text and emojis
+- **Safe Skipping**: Never attempts to unfollow verified accounts
+- **Detailed Reporting**: Shows which verified accounts were skipped
+
+### 🧹 Clean Logging System
+
+- **Smart Filtering**: Automatically filters out harmless errors
+- **Facebook Error Suppression**: Hides common Facebook/Instagram internal errors
+- **Focus on Important**: Only shows errors that actually matter
+- **Clean Output**: Much cleaner and more readable logs
+- **Debug Mode**: Can be enabled for detailed debugging when needed
+
+### 🔄 Dynamic Scrolling Technology
+
+- **No Fixed Limits**: Adapts to Instagram's lazy loading system
+- **End Detection**: Automatically detects when no more content is available
+- **Efficient Processing**: Optimized scroll amounts and timing
+- **Large List Support**: Handles accounts with 4000+ followers/following
+- **Progress Tracking**: Real-time progress updates during extraction
+
+### 📈 Performance Optimization
+
+- **Cached Data**: Reuses previously extracted data when available
+- **Efficient Algorithms**: Optimized data processing and comparison
+- **Memory Management**: Smart memory usage for large datasets
+- **Speed Improvements**: Faster processing with reduced wait times
+- **Resource Optimization**: Minimal system resource usage
 
 ## ⚙️ Configuration
 
@@ -79,11 +121,15 @@ The bot automatically configures itself, but you can modify:
 
 After each run, you'll get detailed statistics:
 
-- Total followers collected
-- Total following collected
-- Non-mutual accounts found
-- Accounts processed
-- Accounts successfully unfollowed
+- **Total followers collected**: Complete count of your followers
+- **Total following collected**: Complete count of accounts you follow
+- **Non-mutual accounts found**: Accounts that don't follow you back
+- **Accounts processed**: Number of accounts checked during the run
+- **Accounts successfully unfollowed**: Number of accounts actually unfollowed
+- **Verified accounts skipped**: Number of verified accounts automatically skipped
+- **Completion rate**: Percentage of data successfully extracted
+- **Processing time**: Total time taken for the operation
+- **Extraction efficiency**: Users extracted per scroll attempt
 
 ## 🔧 Technical Details
 
@@ -145,6 +191,89 @@ This tool is for educational purposes only. Users are responsible for:
 - Instagram's UI changes may affect functionality
 - Rate limiting may slow down large operations
 - Some private accounts may not be accessible
+
+## 🔧 Troubleshooting
+
+### Common Issues and Solutions
+
+#### Error: `net::ERR_ABORTED`
+
+- **Status**: ✅ **FIXED** - This error has been resolved with improved error handling
+- **Solution**: The bot now includes retry mechanisms and better navigation handling
+- **What to do**: If you still see this error, the bot will automatically retry
+
+#### Error: `net::ERR_NAME_NOT_RESOLVED`
+
+- **Status**: ✅ **FILTERED** - This error is now filtered out as it's harmless
+- **Solution**: These errors are automatically suppressed in the logs
+- **What to do**: No action needed, the bot continues working normally
+
+#### Error: `DTSG response is not valid`
+
+- **Status**: ✅ **FILTERED** - This is a normal Facebook internal error
+- **Solution**: These errors are automatically filtered out
+- **What to do**: No action needed, the bot continues working normally
+
+#### Verified Accounts Not Being Skipped
+
+- **Status**: ✅ **FIXED** - Verified account detection has been improved
+- **Solution**: The bot now uses multiple detection methods
+- **What to do**: Verified accounts should now be automatically skipped
+
+#### Large Lists (4000+ users) Not Working
+
+- **Status**: ✅ **FIXED** - Dynamic scrolling now handles large lists
+- **Solution**: The bot now adapts to Instagram's lazy loading system
+- **What to do**: Large lists should now work without issues
+
+### Performance Issues
+
+#### Slow Processing
+
+- **Solution**: The bot now includes performance optimizations
+- **Features**: Cached data, efficient algorithms, reduced wait times
+- **Result**: Much faster processing, especially for large lists
+
+#### Memory Usage
+
+- **Solution**: Smart memory management implemented
+- **Features**: Efficient data processing, optimized resource usage
+- **Result**: Lower memory footprint, better stability
+
+## 📝 Changelog
+
+### Version 2.0.0 - Major Update
+
+#### ✨ New Features
+
+- **🔵 Verified Account Protection**: Automatically skips verified accounts (blue checkmark)
+- **🧹 Clean Logging System**: Filters out harmless errors for cleaner output
+- **🔄 Dynamic Scrolling**: Adapts to Instagram's lazy loading without fixed limits
+- **📈 Performance Optimization**: Cached data extraction and efficient processing
+- **🛠️ Robust Error Handling**: Retry mechanisms and graceful error recovery
+
+#### 🐛 Bug Fixes
+
+- **Fixed**: `net::ERR_ABORTED` error with improved navigation handling
+- **Fixed**: Verified accounts not being skipped
+- **Fixed**: Large lists (4000+ users) not working properly
+- **Fixed**: Console error spam with smart filtering
+- **Fixed**: Memory usage issues with large datasets
+
+#### ⚡ Performance Improvements
+
+- **Faster**: Reduced wait times and optimized algorithms
+- **Efficient**: Cached data extraction for repeated runs
+- **Stable**: Better error handling and retry mechanisms
+- **Clean**: Filtered error logs for better user experience
+
+#### 🔧 Technical Improvements
+
+- **Dynamic Scrolling**: No more fixed scroll limits
+- **Smart Detection**: Multiple methods for verified account detection
+- **Error Filtering**: Comprehensive filtering of harmless errors
+- **Memory Management**: Optimized resource usage
+- **Session Management**: Improved session handling and cleanup
 
 ## 📞 Support
 

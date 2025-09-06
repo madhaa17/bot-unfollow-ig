@@ -31,36 +31,335 @@ async function runUnfollowBot(username, password, limit, logCallback = null) {
       }
     }
 
+    // Clean up any existing session data that might be corrupted
+    const browserDataDir = path.join(sessionDir, "browser_data");
+    if (fs.existsSync(browserDataDir)) {
+      try {
+        fs.rmSync(browserDataDir, { recursive: true, force: true });
+        log(`🧹 Cleaned up old browser data`);
+      } catch (e) {
+        log(`⚠️ Could not clean browser data: ${e.message}`);
+      }
+    }
+
     browser = await puppeteer.launch({
       headless: false,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-      userDataDir: sessionDir,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-accelerated-2d-canvas",
+        "--no-first-run",
+        "--disable-gpu",
+        "--disable-web-security",
+        "--disable-features=VizDisplayCompositor",
+        "--disable-background-timer-throttling",
+        "--disable-backgrounding-occluded-windows",
+        "--disable-renderer-backgrounding",
+        "--disable-extensions",
+        "--disable-default-apps",
+        "--disable-sync",
+        "--disable-translate",
+        "--hide-scrollbars",
+        "--mute-audio",
+        "--no-default-browser-check",
+        "--password-store=basic",
+        "--disable-blink-features=AutomationControlled",
+        "--disable-features=TranslateUI",
+        "--disable-ipc-flooding-protection",
+        "--disable-logging",
+        "--disable-gpu-logging",
+        "--silent",
+        "--log-level=3",
+      ],
+      userDataDir: browserDataDir,
       protocolTimeout: 300000, // 5 minutes timeout instead of default 180s
-      slowMo: 50, // Add small delay between actions for stability
+      slowMo: 100, // Increased delay for stability
     });
+
     const page = await browser.newPage();
+
+    // Add response listener to debug network responses (without request interception)
+    page.on("response", (response) => {
+      const url = response.url();
+      const status = response.status();
+      if (url.includes("instagram.com") && status >= 400) {
+        log(`❌ Error response: ${status} ${response.statusText()} for ${url}`);
+      }
+    });
+
+    // Add console listener to debug JavaScript errors (filter out common harmless errors)
+    page.on("console", (msg) => {
+      if (msg.type() === "error") {
+        const errorText = msg.text();
+
+        // Filter out common harmless errors that don't affect functionality
+        const harmlessErrors = [
+          "net::ERR_NAME_NOT_RESOLVED",
+          "Failed to load resource",
+          "WebAssembly module",
+          "Content Security Policy",
+          "unsafe-eval",
+          "blob:",
+          "nonce-",
+          "ErrorUtils caught an error",
+          "Unable to parse uri",
+          "DTSG response is not valid",
+          "Sorry, something went wrong",
+          "Please try closing and re-opening",
+          "Subsequent non-fatal errors won't be logged",
+          "fburl.com/debugjs",
+          "JSHandle@object",
+          "facebook.com/ig_xsite",
+          "DOCTYPE html",
+          "html lang=",
+          "meta charset=",
+          "script nonce=",
+          "function envFlush",
+          "window.requireLazy",
+          "window.openDatabase",
+          "_btldr={}",
+          "parentElement!=",
+          "errorSummary",
+          "errorDescription",
+          "isNotCritical",
+          "rid:",
+          "lid:",
+          "payload:",
+          "__ar:",
+          "error:",
+          "brsid:",
+          "ajaxpipe_token:",
+          "compat_iframe_token:",
+          "isCQuick:",
+          "promise_include_trace:",
+          "stack_trace_limit:",
+          "timesliceBufferSize:",
+          "show_invariant_decoder:",
+          "useTrustedTypes:",
+          "isTrustedTypesReportOnly:",
+          "hostnameRewriterConfig:",
+          "site:",
+          "inboundName:",
+          "cdnDomainName:",
+          "window.Env=",
+          "requireLazy",
+          "Env",
+          "bumpVultureJSHash",
+          "FbtLogging",
+          "DGWRequestStreamClient",
+          "IntlQtEventFalcoEvent",
+          "MqttLongPollingRunner",
+          "CometRelayEF",
+          "BladeRunnerClient",
+          "PolarisLogger",
+          "ContextualConfig",
+          "InstagramODSImpl",
+          "XAsyncRequest",
+        ];
+
+        const isHarmlessError = harmlessErrors.some((harmless) =>
+          errorText.includes(harmless)
+        );
+
+        // Additional filtering for very long error messages that are usually harmless
+        const isVeryLongError = errorText.length > 500;
+        const isFacebookError =
+          errorText.includes("facebook.com") || errorText.includes("ig_xsite");
+        const isInstagramInternalError =
+          errorText.includes("Instagram") && errorText.includes("error");
+
+        if (
+          !isHarmlessError &&
+          !isVeryLongError &&
+          !isFacebookError &&
+          !isInstagramInternalError
+        ) {
+          log(`🔴 Console Error: ${errorText}`);
+        }
+      }
+    });
+
+    // Add page error listener (filter out harmless errors)
+    page.on("pageerror", (error) => {
+      const errorMessage = error.message;
+
+      // Filter out common harmless page errors
+      const harmlessPageErrors = [
+        "ErrorUtils caught an error",
+        "Unable to parse uri",
+        "DTSG response is not valid",
+        "Sorry, something went wrong",
+        "Please try closing and re-opening",
+        "Subsequent non-fatal errors won't be logged",
+        "fburl.com/debugjs",
+        "facebook.com/ig_xsite",
+        "DOCTYPE html",
+        "script nonce=",
+        "function envFlush",
+        "window.requireLazy",
+        "window.openDatabase",
+        "_btldr={}",
+        "parentElement!=",
+        "errorSummary",
+        "errorDescription",
+        "isNotCritical",
+        "rid:",
+        "lid:",
+        "payload:",
+        "__ar:",
+        "error:",
+        "brsid:",
+        "ajaxpipe_token:",
+        "compat_iframe_token:",
+        "isCQuick:",
+        "promise_include_trace:",
+        "stack_trace_limit:",
+        "timesliceBufferSize:",
+        "show_invariant_decoder:",
+        "useTrustedTypes:",
+        "isTrustedTypesReportOnly:",
+        "hostnameRewriterConfig:",
+        "site:",
+        "inboundName:",
+        "cdnDomainName:",
+        "window.Env=",
+        "requireLazy",
+        "Env",
+        "bumpVultureJSHash",
+        "FbtLogging",
+        "DGWRequestStreamClient",
+        "IntlQtEventFalcoEvent",
+        "MqttLongPollingRunner",
+        "CometRelayEF",
+        "BladeRunnerClient",
+        "PolarisLogger",
+        "ContextualConfig",
+        "InstagramODSImpl",
+        "XAsyncRequest",
+      ];
+
+      const isHarmlessPageError = harmlessPageErrors.some((harmless) =>
+        errorMessage.includes(harmless)
+      );
+
+      const isVeryLongPageError = errorMessage.length > 500;
+      const isFacebookPageError =
+        errorMessage.includes("facebook.com") ||
+        errorMessage.includes("ig_xsite");
+      const isInstagramInternalPageError =
+        errorMessage.includes("Instagram") && errorMessage.includes("error");
+
+      if (
+        !isHarmlessPageError &&
+        !isVeryLongPageError &&
+        !isFacebookPageError &&
+        !isInstagramInternalPageError
+      ) {
+        log(`🔴 Page Error: ${errorMessage}`);
+      }
+    });
 
     await page.setUserAgent(
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     );
 
     log("📱 Navigating to Instagram...");
-    await page.goto("https://www.instagram.com/", {
-      waitUntil: "networkidle2",
-    });
+
+    // Retry mechanism for navigation
+    let navigationSuccess = false;
+    let navigationAttempts = 0;
+    const maxNavigationAttempts = 3;
+
+    while (!navigationSuccess && navigationAttempts < maxNavigationAttempts) {
+      try {
+        navigationAttempts++;
+        log(
+          `🌐 Navigation attempt ${navigationAttempts}/${maxNavigationAttempts}...`
+        );
+
+        await page.goto("https://www.instagram.com/", {
+          waitUntil: "domcontentloaded", // Changed from networkidle2 to domcontentloaded
+          timeout: 30000, // 30 seconds timeout
+        });
+
+        // Wait a bit for the page to stabilize
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        // Check if page loaded successfully
+        const currentUrl = page.url();
+        if (currentUrl.includes("instagram.com")) {
+          log("✅ Successfully navigated to Instagram");
+          navigationSuccess = true;
+        } else {
+          throw new Error(`Navigation failed - current URL: ${currentUrl}`);
+        }
+      } catch (error) {
+        log(
+          `❌ Navigation attempt ${navigationAttempts} failed: ${error.message}`
+        );
+
+        if (navigationAttempts >= maxNavigationAttempts) {
+          log(`❌ All navigation attempts failed`);
+          throw new Error(
+            `Failed to navigate to Instagram after ${maxNavigationAttempts} attempts: ${error.message}`
+          );
+        }
+
+        // Wait before retry
+        log(`⏳ Waiting 3 seconds before retry...`);
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      }
+    }
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
 
-    // Check if already logged in
+    // Check if already logged in with better detection
     try {
-      const isLoggedIn =
-        (await page.$('svg[aria-label="Home"]')) ||
-        (await page.$('img[alt*="profile picture"]')) ||
-        (await page.$('a[href*="/' + username + '/"]'));
+      // Wait for page to fully load
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+
+      const currentUrl = page.url();
+      log(`🔍 Current URL after navigation: ${currentUrl}`);
+
+      // Check if we're on login page or redirected
+      if (
+        currentUrl.includes("/accounts/login") ||
+        currentUrl.includes("/accounts/onetap")
+      ) {
+        log("🔐 Redirected to login page, session expired");
+        throw new Error("Need to login");
+      }
+
+      // Check for login indicators
+      const isLoggedIn = await page.evaluate(() => {
+        // Check for home icon
+        const homeIcon = document.querySelector('svg[aria-label="Home"]');
+        if (homeIcon) return true;
+
+        // Check for profile picture
+        const profilePic = document.querySelector(
+          'img[alt*="profile picture"]'
+        );
+        if (profilePic) return true;
+
+        // Check for navigation menu
+        const navMenu = document.querySelector('nav[role="navigation"]');
+        if (navMenu) return true;
+
+        // Check for Instagram logo (indicates we're on main page)
+        const instagramLogo = document.querySelector(
+          'svg[aria-label="Instagram"]'
+        );
+        if (instagramLogo) return true;
+
+        return false;
+      });
 
       if (isLoggedIn) {
         log("✅ Already logged in! Using saved session.");
       } else {
+        log("❌ Not logged in, need to authenticate");
         throw new Error("Need to login");
       }
     } catch (e) {
@@ -1083,9 +1382,63 @@ async function runUnfollowBot(username, password, limit, logCallback = null) {
 
     // Step 1: Get ALL followers
     log("👥 Step 1: Getting ALL followers list...");
-    await page.goto(`https://www.instagram.com/${username}/`, {
-      waitUntil: "networkidle2",
-    });
+
+    // Retry mechanism for profile navigation
+    let profileNavigationSuccess = false;
+    let profileNavigationAttempts = 0;
+    const maxProfileNavigationAttempts = 3;
+
+    while (
+      !profileNavigationSuccess &&
+      profileNavigationAttempts < maxProfileNavigationAttempts
+    ) {
+      try {
+        profileNavigationAttempts++;
+        log(
+          `👤 Profile navigation attempt ${profileNavigationAttempts}/${maxProfileNavigationAttempts}...`
+        );
+
+        await page.goto(`https://www.instagram.com/${username}/`, {
+          waitUntil: "domcontentloaded", // Changed from networkidle2 to domcontentloaded
+          timeout: 30000, // 30 seconds timeout
+        });
+
+        // Wait for page to stabilize
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+
+        // Check if navigation was successful
+        const currentUrl = page.url();
+        log(`🔍 Current URL after profile navigation: ${currentUrl}`);
+
+        if (
+          currentUrl.includes(`/${username}/`) ||
+          currentUrl.includes("instagram.com")
+        ) {
+          log(`✅ Successfully navigated to @${username}'s profile`);
+          profileNavigationSuccess = true;
+        } else {
+          throw new Error(
+            `Profile navigation failed - current URL: ${currentUrl}`
+          );
+        }
+      } catch (error) {
+        log(
+          `❌ Profile navigation attempt ${profileNavigationAttempts} failed: ${error.message}`
+        );
+
+        if (profileNavigationAttempts >= maxProfileNavigationAttempts) {
+          log(`❌ All profile navigation attempts failed`);
+          throw new Error(
+            `Failed to navigate to @${username}'s profile after ${maxProfileNavigationAttempts} attempts: ${error.message}`
+          );
+        }
+
+        // Wait before retry
+        log(`⏳ Waiting 3 seconds before retry...`);
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      }
+    }
+
     await new Promise((resolve) => setTimeout(resolve, 3000));
 
     // Click followers link
@@ -1175,10 +1528,13 @@ async function runUnfollowBot(username, password, limit, logCallback = null) {
     log("🧮 Step 3: Comparing lists to find non-mutual accounts...");
 
     // Filter out accounts that are actually mutual (especially those at the top)
-    log("🔍 Filtering out mutual accounts and own account...");
+    log(
+      "🔍 Filtering out mutual accounts, own account, and verified accounts..."
+    );
     const nonMutualAccounts = [];
     const mutualAccounts = [];
     const alreadyCheckedAccounts = [];
+    const verifiedAccounts = [];
 
     for (let followingUser of allFollowing) {
       if (followingUser === username) {
@@ -1212,6 +1568,7 @@ async function runUnfollowBot(username, password, limit, logCallback = null) {
     log(
       `   • Available to unfollow: ${Math.min(nonMutualAccounts.length, limit)}`
     );
+    log(`   • Verified accounts will be skipped automatically`);
 
     // Completion rate analysis
     const followersCompletionRate =
@@ -1298,11 +1655,16 @@ async function runUnfollowBot(username, password, limit, logCallback = null) {
       log(`   ... and ${nonMutualAccounts.length - previewCount} more`);
     }
 
+    log(
+      "ℹ️ Note: Verified accounts (blue checkmark) will be automatically skipped during the unfollow process."
+    );
+
     // Step 4: Unfollow non-mutual accounts
     log("🎯 Step 4: Starting unfollow process...");
 
     let unfollowed = 0;
     let processed = 0;
+    let skippedVerified = 0;
 
     for (let targetUsername of nonMutualAccounts) {
       if (processed >= limit) break; // Stop when we've processed enough accounts
@@ -1317,6 +1679,60 @@ async function runUnfollowBot(username, password, limit, logCallback = null) {
           waitUntil: "networkidle2",
         });
         await new Promise((resolve) => setTimeout(resolve, 3000));
+
+        // Check if account is verified before attempting to unfollow
+        const isVerified = await page.evaluate(() => {
+          // Look for verified badge indicators
+          const verifiedIndicators = [
+            'svg[aria-label="Verified"]',
+            'svg[aria-label="Verified account"]',
+            '[data-testid="verified-icon"]',
+            'svg[class*="verified"]',
+            'div[class*="verified"]',
+            'span[class*="verified"]',
+            // Look for blue checkmark emoji or similar
+            'svg[class*="check"]',
+            'div[class*="check"]',
+          ];
+
+          for (let selector of verifiedIndicators) {
+            const element = document.querySelector(selector);
+            if (element) {
+              console.log(
+                `Found verified indicator with selector: ${selector}`
+              );
+              return true;
+            }
+          }
+
+          // Also check for text content that might indicate verification
+          const allElements = document.querySelectorAll("*");
+          for (let element of allElements) {
+            const text = element.textContent?.trim().toLowerCase();
+            if (
+              text &&
+              (text.includes("verified") ||
+                text.includes("terverifikasi") ||
+                text.includes("✓") ||
+                text.includes("✔"))
+            ) {
+              console.log(`Found verified text: ${text}`);
+              return true;
+            }
+          }
+
+          return false;
+        });
+
+        if (isVerified) {
+          skippedVerified++;
+          verifiedAccounts.push(targetUsername);
+          log(
+            `🔵 Skipping verified account: @${targetUsername} (blue checkmark detected)`
+          );
+          checkedAccounts.add(targetUsername);
+          continue; // Skip this verified account
+        }
 
         // Look for "Following" button on their profile
         log(`🔍 Scanning page elements for @${targetUsername}...`);
@@ -1572,7 +1988,20 @@ async function runUnfollowBot(username, password, limit, logCallback = null) {
     log(`   • Non-mutual accounts found: ${nonMutualAccounts.length}`);
     log(`   • Accounts processed: ${processed}`);
     log(`   • Accounts unfollowed: ${unfollowed}`);
+    log(`   • Verified accounts skipped: ${skippedVerified}`);
     log(`   • Total checked accounts: ${checkedAccounts.size}`);
+
+    if (verifiedAccounts.length > 0) {
+      log(`🔵 Verified accounts that were skipped:`);
+      const previewVerified = verifiedAccounts.slice(0, 5);
+      for (let i = 0; i < previewVerified.length; i++) {
+        log(`   ${i + 1}. @${previewVerified[i]}`);
+      }
+      if (verifiedAccounts.length > 5) {
+        log(`   ... and ${verifiedAccounts.length - 5} more verified accounts`);
+      }
+    }
+
     log(`💾 Session saved for user: ${username}`);
     return unfollowed;
   } catch (error) {
