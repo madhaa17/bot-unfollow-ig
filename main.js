@@ -11,6 +11,10 @@ app.commandLine.appendSwitch("--disable-dev-shm-usage");
 app.commandLine.appendSwitch("--disable-accelerated-2d-canvas");
 app.commandLine.appendSwitch("--disable-gpu");
 app.commandLine.appendSwitch("--disable-web-security");
+app.commandLine.appendSwitch("--disable-features=VizDisplayCompositor");
+app.commandLine.appendSwitch("--disable-background-timer-throttling");
+app.commandLine.appendSwitch("--disable-backgrounding-occluded-windows");
+app.commandLine.appendSwitch("--disable-renderer-backgrounding");
 
 function createWindow() {
   mainWindow = new BrowserWindow({

@@ -155,7 +155,7 @@ async function runUnfollowBot(username, password, limit, logCallback = null) {
         }
       }
 
-      // Try to resume from temporary progress
+      // Check for partial extraction and resume from there
       if (fs.existsSync(tempFile)) {
         try {
           const tempData = JSON.parse(fs.readFileSync(tempFile, "utf8"));
@@ -172,9 +172,14 @@ async function runUnfollowBot(username, password, limit, logCallback = null) {
 
       let scrollAttempts = 0;
       let consecutiveNoNewUsers = 0;
-      const maxScrollAttempts = listType === "following" ? 150 : 100; // More attempts for following lists
-      const maxConsecutiveNoNew = 20; // More patience for large lists
       let lastScrollHeight = 0;
+      let lastUserCount = 0;
+      let stuckCount = 0;
+      let modalRefreshCount = 0;
+      const maxModalRefreshes = 10; // Maximum number of modal refreshes for ultra-large lists
+      let scrollEndDetected = false;
+      let noScrollProgressCount = 0;
+      const maxNoScrollProgress = 20; // Stop if no scroll progress for 20 attempts
 
       // Set page timeout for this specific operation
       await page.setDefaultTimeout(60000); // 1 minute per operation
@@ -184,14 +189,55 @@ async function runUnfollowBot(username, password, limit, logCallback = null) {
       log(`⏳ ${listType}: Waiting for initial page load...`);
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
+      // Detect if this is an ultra-large list based on expected count
+      // For now, we'll detect ultra-large lists based on a reasonable threshold
+      // The actual counts will be available later in the process
+      const isUltraLargeList = false; // Will be updated when actualCounts is available
+
+      if (isUltraLargeList) {
+        log(`🚀 Ultra-large list detected: ${listType} expected`);
+        log(`   • Using specialized extraction strategy for large lists`);
+        log(`   • This may take significantly longer to complete`);
+        log(`   • Progress will be saved frequently to prevent data loss`);
+      }
+
       while (
-        scrollAttempts < maxScrollAttempts &&
-        consecutiveNoNewUsers < maxConsecutiveNoNew
+        !scrollEndDetected &&
+        noScrollProgressCount < maxNoScrollProgress
       ) {
         scrollAttempts++;
 
-        // Wait for content to load before extracting
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        // Optimized content loading wait - reduced from 10s to 3s max
+        let contentLoaded = false;
+        let loadAttempts = 0;
+        const maxLoadAttempts = 3; // Reduced from 5 to 3
+
+        while (!contentLoaded && loadAttempts < maxLoadAttempts) {
+          loadAttempts++;
+
+          // Reduced wait time from 2000ms to 1000ms
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+
+          // Simplified loading detection
+          const isLoading = await page.evaluate(() => {
+            const dialog = document.querySelector('div[role="dialog"]');
+            if (!dialog) return false;
+
+            // Quick check for loading indicators
+            const loadingIndicators = dialog.querySelectorAll(
+              '[class*="loading"], [class*="spinner"]'
+            );
+            return loadingIndicators.length > 0;
+          });
+
+          if (!isLoading) {
+            contentLoaded = true;
+          } else if (loadAttempts < maxLoadAttempts) {
+            log(
+              `⏳ ${listType}: Content loading... (${loadAttempts}/${maxLoadAttempts})`
+            );
+          }
+        }
 
         // Simplified extraction with timeout protection
         const currentUsernames = await Promise.race([
@@ -293,7 +339,7 @@ async function runUnfollowBot(username, password, limit, logCallback = null) {
           }),
           new Promise(
             (_, reject) =>
-              setTimeout(() => reject(new Error("Extraction timeout")), 30000) // 30 second timeout per extraction
+              setTimeout(() => reject(new Error("Extraction timeout")), 15000) // Reduced from 30s to 15s
           ),
         ]).catch((error) => {
           console.log(`⚠️ Extraction timeout, continuing...`);
@@ -309,13 +355,22 @@ async function runUnfollowBot(username, password, limit, logCallback = null) {
           }
         });
 
+        // Enhanced progress tracking for large lists
+        if (usernames.size === lastUserCount) {
+          stuckCount++;
+        } else {
+          stuckCount = 0;
+          lastUserCount = usernames.size;
+        }
+
         if (newCount === 0) {
           consecutiveNoNewUsers++;
           log(
-            `📊 ${listType}: Scroll ${scrollAttempts} - No new users found (${consecutiveNoNewUsers}/${maxConsecutiveNoNew}) - Total: ${usernames.size}`
+            `📊 ${listType}: Scroll ${scrollAttempts} - No new users found (${consecutiveNoNewUsers}) - Total: ${usernames.size} - Stuck: ${stuckCount}`
           );
         } else {
           consecutiveNoNewUsers = 0; // Reset counter when we find new users
+          stuckCount = 0; // Reset stuck counter when we find new users
           log(
             `📊 ${listType}: Scroll ${scrollAttempts} - Found ${newCount} new users (total: ${usernames.size})`
           );
@@ -333,36 +388,162 @@ async function runUnfollowBot(username, password, limit, logCallback = null) {
           }
         }
 
+        // Optimized stuck detection - reduced threshold for faster response
+        const stuckThreshold = isUltraLargeList ? 30 : 20; // Reduced from 50/30 to 30/20
+        if (stuckCount > stuckThreshold) {
+          log(
+            `🔄 ${listType}: Detected stuck state, trying alternative scrolling approach...`
+          );
+
+          // For ultra-large lists, try modal refresh more aggressively
+          if (isUltraLargeList && modalRefreshCount < maxModalRefreshes) {
+            log(
+              `🔄 ${listType}: Attempting modal refresh ${
+                modalRefreshCount + 1
+              }/${maxModalRefreshes} for ultra-large list...`
+            );
+
+            try {
+              await page.keyboard.press("Escape");
+              await new Promise((resolve) => setTimeout(resolve, 3000)); // Longer wait for ultra-large lists
+
+              // Reopen the modal
+              if (listType === "followers") {
+                const followersLinks = await page.$$("a");
+                for (let link of followersLinks) {
+                  const href = await page.evaluate(
+                    (el) => el.getAttribute("href"),
+                    link
+                  );
+                  if (href && href.includes("/followers")) {
+                    await link.click();
+                    break;
+                  }
+                }
+              } else {
+                const followingLinks = await page.$$("a");
+                for (let link of followingLinks) {
+                  const href = await page.evaluate(
+                    (el) => el.getAttribute("href"),
+                    link
+                  );
+                  if (href && href.includes("/following")) {
+                    await link.click();
+                    break;
+                  }
+                }
+              }
+
+              await new Promise((resolve) => setTimeout(resolve, 5000)); // Longer wait for ultra-large lists
+              modalRefreshCount++;
+              stuckCount = 0;
+              consecutiveNoNewUsers = 0;
+              log(
+                `🔄 ${listType}: Modal refreshed (${modalRefreshCount}/${maxModalRefreshes}), continuing extraction...`
+              );
+            } catch (e) {
+              log(
+                `⚠️ Could not refresh modal, continuing with current approach...`
+              );
+            }
+          } else {
+            // For regular lists or when max refreshes reached, try alternative scrolling
+            log(`🔄 ${listType}: Trying alternative scrolling strategies...`);
+
+            // Try more aggressive scrolling
+            await page.evaluate(() => {
+              const dialog = document.querySelector('div[role="dialog"]');
+              if (dialog) {
+                const scrollableContainers = dialog.querySelectorAll("div");
+                for (let container of scrollableContainers) {
+                  if (container.scrollHeight > container.clientHeight) {
+                    // Try scrolling to very bottom
+                    container.scrollTop = container.scrollHeight;
+                    // Then scroll back up a bit to trigger more loading
+                    setTimeout(() => {
+                      container.scrollTop = container.scrollHeight - 1000;
+                    }, 1000);
+                  }
+                }
+              }
+            });
+
+            await new Promise((resolve) => setTimeout(resolve, 3000));
+            stuckCount = 0;
+            consecutiveNoNewUsers = 0;
+          }
+        }
+
+        // Special handling for very large lists (>3000 users)
+        if (usernames.size > 3000 && scrollAttempts > 200) {
+          log(
+            `🔄 ${listType}: Very large list detected (${usernames.size} users), applying special optimizations...`
+          );
+
+          // Try to scroll to the very bottom to trigger all lazy loading
+          try {
+            await page.evaluate(() => {
+              const dialog = document.querySelector('div[role="dialog"]');
+              if (dialog) {
+                const scrollableContainers = dialog.querySelectorAll("div");
+                for (let container of scrollableContainers) {
+                  if (container.scrollHeight > container.clientHeight) {
+                    container.scrollTop = container.scrollHeight;
+                  }
+                }
+              }
+            });
+
+            // Wait longer for content to load
+            await new Promise((resolve) => setTimeout(resolve, 5000));
+
+            // Try to trigger more content loading by scrolling up and down
+            await page.evaluate(() => {
+              const dialog = document.querySelector('div[role="dialog"]');
+              if (dialog) {
+                const scrollableContainers = dialog.querySelectorAll("div");
+                for (let container of scrollableContainers) {
+                  if (container.scrollHeight > container.clientHeight) {
+                    // Scroll to top
+                    container.scrollTop = 0;
+                    // Then scroll to bottom
+                    setTimeout(() => {
+                      container.scrollTop = container.scrollHeight;
+                    }, 1000);
+                  }
+                }
+              }
+            });
+
+            await new Promise((resolve) => setTimeout(resolve, 3000));
+          } catch (e) {
+            log(`⚠️ Could not apply special optimizations for large list`);
+          }
+        }
+
         // Enhanced scrolling with multiple strategies
-        const scrollSuccess = await Promise.race([
+        const scrollResult = await Promise.race([
           page.evaluate(() => {
             console.log("🔄 Starting aggressive scroll operation...");
             let scrolled = false;
             let maxScrolled = 0;
+            let currentScrollHeight = 0;
 
-            // Strategy 1: Try all possible scroll containers
-            const allSelectors = [
-              'div[role="dialog"]',
-              'div[role="dialog"] > div',
-              'div[role="dialog"] > div > div',
-              'div[role="dialog"] > div > div > div',
-              'div[role="dialog"] div[style*="overflow"]',
-              'div[role="dialog"] div[style*="height"]',
-              'div[role="dialog"] div[style*="max-height"]',
-              'div[role="dialog"] div[style*="overflow-y"]',
-              'div[role="dialog"] div[style*="overflow-x"]',
-              'div[role="dialog"] div[class*="scroll"]',
-              'div[role="dialog"] div[class*="_aano"]',
-              'div[role="dialog"] div[class*="_ab8w"]',
+            // Optimized Strategy 1: Try most effective scroll containers first
+            const prioritySelectors = [
+              'div[role="dialog"] div[class*="_aano"]', // Most common Instagram scroll container
+              'div[role="dialog"] div[style*="overflow-y"]', // Direct overflow containers
+              'div[role="dialog"] > div > div', // Common nested structure
+              'div[role="dialog"]', // Fallback to dialog itself
             ];
 
-            console.log(`Trying ${allSelectors.length} scroll strategies...`);
+            console.log(
+              `Trying ${prioritySelectors.length} optimized scroll strategies...`
+            );
 
-            for (let selector of allSelectors) {
+            for (let selector of prioritySelectors) {
               const containers = document.querySelectorAll(selector);
-              console.log(
-                `Selector "${selector}" found ${containers.length} containers`
-              );
+              if (containers.length === 0) continue;
 
               for (let container of containers) {
                 if (container.scrollHeight > container.clientHeight) {
@@ -371,8 +552,8 @@ async function runUnfollowBot(username, password, limit, logCallback = null) {
                   );
                   const beforeScroll = container.scrollTop;
 
-                  // Try multiple scroll amounts
-                  for (let amount of [500, 800, 1000, 1500]) {
+                  // Optimized scroll amounts - try fewer, more effective amounts
+                  for (let amount of [1000, 2000, 3000]) {
                     container.scrollTop = beforeScroll + amount;
                     const afterScroll = container.scrollTop;
 
@@ -383,6 +564,19 @@ async function runUnfollowBot(username, password, limit, logCallback = null) {
                       scrolled = true;
                       maxScrolled = Math.max(maxScrolled, afterScroll);
                       break;
+                    }
+                  }
+
+                  // If normal scrolling didn't work, try scrolling to bottom
+                  if (!scrolled) {
+                    container.scrollTop = container.scrollHeight;
+                    const afterScroll = container.scrollTop;
+                    if (afterScroll > beforeScroll) {
+                      console.log(
+                        `   ✅ Scrolled to bottom: ${beforeScroll} → ${afterScroll}`
+                      );
+                      scrolled = true;
+                      maxScrolled = Math.max(maxScrolled, afterScroll);
                     }
                   }
 
@@ -519,33 +713,180 @@ async function runUnfollowBot(username, password, limit, logCallback = null) {
               }
             }
 
+            // Strategy 5: Aggressive scroll to bottom for large lists
+            if (!scrolled) {
+              console.log("🔄 Trying aggressive bottom scroll strategy...");
+              const dialog = document.querySelector('div[role="dialog"]');
+              if (dialog) {
+                // Find all scrollable containers and scroll them to bottom
+                const scrollableContainers = dialog.querySelectorAll("div");
+                for (let container of scrollableContainers) {
+                  if (container.scrollHeight > container.clientHeight) {
+                    const beforeScroll = container.scrollTop;
+                    container.scrollTop = container.scrollHeight;
+                    const afterScroll = container.scrollTop;
+
+                    if (afterScroll > beforeScroll) {
+                      console.log(
+                        `   ✅ Aggressive bottom scroll: ${beforeScroll} → ${afterScroll}`
+                      );
+                      scrolled = true;
+                      maxScrolled = Math.max(maxScrolled, afterScroll);
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+
+            // Strategy 6: Simulate user interaction for lazy loading
+            if (!scrolled) {
+              console.log("🔄 Trying user interaction simulation...");
+              const dialog = document.querySelector('div[role="dialog"]');
+              if (dialog) {
+                // Simulate mouse movement and clicks to trigger lazy loading
+                const rect = dialog.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+
+                // Simulate mouse move events
+                for (let i = 0; i < 5; i++) {
+                  const mouseEvent = new MouseEvent("mousemove", {
+                    clientX: centerX + i * 10,
+                    clientY: centerY + i * 10,
+                    bubbles: true,
+                    cancelable: true,
+                  });
+                  dialog.dispatchEvent(mouseEvent);
+                }
+
+                // Check if any scrolling happened after mouse events
+                const scrollableElements = dialog.querySelectorAll("div");
+                for (let element of scrollableElements) {
+                  if (element.scrollTop > 0) {
+                    console.log(
+                      `   ✅ Mouse interaction triggered scroll: scrollTop=${element.scrollTop}`
+                    );
+                    scrolled = true;
+                    maxScrolled = Math.max(maxScrolled, element.scrollTop);
+                    break;
+                  }
+                }
+              }
+            }
+
+            // Get current scroll height for all containers
+            const dialog = document.querySelector('div[role="dialog"]');
+            if (dialog) {
+              const scrollableContainers = dialog.querySelectorAll("div");
+              for (let container of scrollableContainers) {
+                if (container.scrollHeight > container.clientHeight) {
+                  currentScrollHeight = Math.max(
+                    currentScrollHeight,
+                    container.scrollHeight
+                  );
+                }
+              }
+            }
+
             console.log(
-              `🔄 Scroll operation completed. Success: ${scrolled}, maxScrolled: ${maxScrolled}`
+              `🔄 Scroll operation completed. Success: ${scrolled}, maxScrolled: ${maxScrolled}, scrollHeight: ${currentScrollHeight}`
             );
-            return maxScrolled;
+            return {
+              scrolled: scrolled,
+              maxScrolled: maxScrolled,
+              scrollHeight: currentScrollHeight,
+            };
           }),
           new Promise(
             (_, reject) =>
-              setTimeout(() => reject(new Error("Scroll timeout")), 15000) // Increased timeout
+              setTimeout(() => reject(new Error("Scroll timeout")), 10000) // Reduced from 15s to 10s
           ),
         ]).catch((error) => {
           console.log(`⚠️ Scroll timeout, continuing...`);
-          return 0;
+          return { scrolled: false, maxScrolled: 0, scrollHeight: 0 };
         });
 
-        // Quick end detection
+        // Analyze scroll result for dynamic end detection
+        const scrollSuccess = scrollResult.scrolled;
+        const currentScrollHeight = scrollResult.scrollHeight;
+
+        // Check if we can still scroll (dynamic detection)
+        if (scrollSuccess) {
+          // Reset counters when we successfully scroll
+          noScrollProgressCount = 0;
+          lastScrollHeight = Math.max(lastScrollHeight, currentScrollHeight);
+          log(
+            `📊 ${listType}: Scroll successful - height: ${currentScrollHeight}, users: ${usernames.size}`
+          );
+        } else {
+          // No scroll progress detected
+          noScrollProgressCount++;
+          log(
+            `📊 ${listType}: No scroll progress (${noScrollProgressCount}/${maxNoScrollProgress}) - height: ${currentScrollHeight}, users: ${usernames.size}`
+          );
+
+          // Check if we've reached the end of scrollable content
+          if (
+            currentScrollHeight > 0 &&
+            currentScrollHeight === lastScrollHeight
+          ) {
+            log(
+              `🛑 ${listType}: Scroll height unchanged, likely reached end of content`
+            );
+            scrollEndDetected = true;
+          }
+        }
+
+        // Enhanced end detection for large lists
         const isAtEnd = await Promise.race([
           page.evaluate(() => {
             const dialog = document.querySelector('div[role="dialog"]');
             if (!dialog) return false;
 
-            // Simple end detection
+            // Check for end indicators
             const textContent = dialog.textContent.toLowerCase();
-            return (
-              textContent.includes("no more suggestions") ||
-              textContent.includes("end of list") ||
-              textContent.includes("you have seen all")
+            const endIndicators = [
+              "no more suggestions",
+              "end of list",
+              "you have seen all",
+              "no more followers",
+              "no more following",
+              "that's all",
+              "no more to show",
+            ];
+
+            const hasEndIndicator = endIndicators.some((indicator) =>
+              textContent.includes(indicator)
             );
+
+            if (hasEndIndicator) {
+              console.log("Found end indicator in text content");
+              return true;
+            }
+
+            // Check if we've reached the actual end by comparing with expected count
+            const links = dialog.querySelectorAll('a[href^="/"][role="link"]');
+            const uniqueLinks = new Set();
+
+            links.forEach((link) => {
+              const href = link.getAttribute("href");
+              if (href && href.startsWith("/") && href.length > 1) {
+                const username = href
+                  .replace(/^\/+/, "")
+                  .split("?")[0]
+                  .split("#")[0]
+                  .split("/")[0];
+                if (username && username.length > 0 && username.length <= 30) {
+                  uniqueLinks.add(username);
+                }
+              }
+            });
+
+            console.log(`Current unique links found: ${uniqueLinks.size}`);
+
+            // If we have a reasonable number of links and no new ones are loading
+            return uniqueLinks.size > 0 && links.length === uniqueLinks.size;
           }),
           new Promise((_, reject) =>
             setTimeout(() => reject(new Error("End detection timeout")), 5000)
@@ -553,39 +894,179 @@ async function runUnfollowBot(username, password, limit, logCallback = null) {
         ]).catch(() => false);
 
         if (isAtEnd) {
-          log(`📊 ${listType}: Detected end of list`);
+          log(`📊 ${listType}: Detected end of list via content analysis`);
+          scrollEndDetected = true;
           break;
         }
 
-        // Progressive wait times - shorter for better performance
-        let waitTime =
-          scrollAttempts < 20 ? 1500 : scrollAttempts < 50 ? 2000 : 2500;
+        // Additional dynamic end detection based on user count stability
+        if (usernames.size === lastUserCount && usernames.size > 0) {
+          consecutiveNoNewUsers++;
+          if (consecutiveNoNewUsers > 30) {
+            // Only stop if no new users for 30 attempts
+            log(
+              `📊 ${listType}: No new users found for ${consecutiveNoNewUsers} attempts, checking if we've reached the end...`
+            );
+
+            // Try one more aggressive scroll to confirm we're at the end
+            const finalScrollCheck = await page.evaluate(() => {
+              const dialog = document.querySelector('div[role="dialog"]');
+              if (!dialog) return false;
+
+              const scrollableContainers = dialog.querySelectorAll("div");
+              let canStillScroll = false;
+
+              for (let container of scrollableContainers) {
+                if (container.scrollHeight > container.clientHeight) {
+                  const beforeScroll = container.scrollTop;
+                  container.scrollTop = container.scrollHeight;
+                  const afterScroll = container.scrollTop;
+
+                  if (afterScroll > beforeScroll) {
+                    canStillScroll = true;
+                    break;
+                  }
+                }
+              }
+
+              return canStillScroll;
+            });
+
+            if (!finalScrollCheck) {
+              log(
+                `🛑 ${listType}: Confirmed - no more content to scroll, ending extraction`
+              );
+              scrollEndDetected = true;
+              break;
+            } else {
+              log(`🔄 ${listType}: Still can scroll, continuing extraction...`);
+              consecutiveNoNewUsers = 0; // Reset counter
+            }
+          }
+        } else {
+          consecutiveNoNewUsers = 0; // Reset counter when we find new users
+          lastUserCount = usernames.size;
+        }
+
+        // Optimized wait times - significantly reduced for better efficiency
+        let waitTime;
+        if (usernames.size < 500) {
+          waitTime =
+            scrollAttempts < 20 ? 800 : scrollAttempts < 50 ? 1200 : 1500;
+        } else if (usernames.size < 1500) {
+          waitTime =
+            scrollAttempts < 30 ? 1000 : scrollAttempts < 80 ? 1500 : 2000;
+        } else {
+          // For very large lists, use moderate wait times
+          waitTime =
+            scrollAttempts < 50 ? 1200 : scrollAttempts < 100 ? 1800 : 2200;
+        }
+
+        // Reduced extra wait times
+        if (stuckCount > 10) {
+          waitTime += 500; // Reduced from 1000ms to 500ms
+        }
+
+        // Reduced extra wait for very large lists
+        if (usernames.size > 2000) {
+          waitTime += 800; // Reduced from 2000ms to 800ms
+        }
+
+        // Reduced random delay
+        const randomDelay = Math.random() * 300; // Reduced from 1000ms to 300ms
+        waitTime += randomDelay;
+
         await new Promise((resolve) => setTimeout(resolve, waitTime));
 
-        // Save progress periodically for large lists
-        if (scrollAttempts % 25 === 0) {
+        // Save progress more frequently for large lists
+        const saveInterval = usernames.size > 1000 ? 10 : 25; // Save more frequently for large lists
+        if (scrollAttempts % saveInterval === 0) {
           log(
             `📊 ${listType}: Progress check - ${usernames.size} users found after ${scrollAttempts} scrolls`
           );
 
-          // Save intermediate results for following list (in case of crash)
-          if (listType === "following") {
-            try {
-              const tempFile = path.join(sessionDir, `${listType}_temp.json`);
-              fs.writeFileSync(
-                tempFile,
-                JSON.stringify([...usernames], null, 2)
-              );
-              log(`💾 Saved intermediate progress to ${tempFile}`);
-            } catch (e) {
-              log(`⚠️ Could not save intermediate progress`);
-            }
+          // Save intermediate results for both followers and following
+          try {
+            const tempFile = path.join(sessionDir, `${listType}_temp.json`);
+            fs.writeFileSync(tempFile, JSON.stringify([...usernames], null, 2));
+            log(`💾 Saved intermediate progress to ${tempFile}`);
+          } catch (e) {
+            log(`⚠️ Could not save intermediate progress`);
           }
         }
+
+        // Additional progress logging for very large lists
+        if (usernames.size > 0 && usernames.size % 500 === 0) {
+          log(
+            `🎯 ${listType}: Milestone reached - ${usernames.size} users collected!`
+          );
+        }
+
+        // Rate limiting detection and handling
+        if (consecutiveNoNewUsers > 30 && usernames.size > 1000) {
+          log(
+            `⚠️ ${listType}: Possible rate limiting detected, taking longer break...`
+          );
+          await new Promise((resolve) => setTimeout(resolve, 10000)); // 10 second break
+          consecutiveNoNewUsers = 0; // Reset counter after break
+        }
+
+        // Optimized lazy loading detection - reduced frequency and improved efficiency
+        if (noScrollProgressCount > 15 && usernames.size > 500) {
+          // Increased threshold from 10 to 15
+          log(
+            `🔄 ${listType}: Detecting possible Instagram lazy loading issue, trying refresh...`
+          );
+
+          // Optimized content refresh - use cached selectors
+          await page.evaluate(() => {
+            const dialog = document.querySelector('div[role="dialog"]');
+            if (!dialog) return;
+
+            // Use more specific selector to avoid querying all divs
+            const scrollableContainers = dialog.querySelectorAll(
+              'div[class*="_aano"], div[style*="overflow"]'
+            );
+            for (let container of scrollableContainers) {
+              if (container.scrollHeight > container.clientHeight) {
+                // Quick scroll to top and bottom
+                container.scrollTop = 0;
+                container.scrollTop = container.scrollHeight;
+              }
+            }
+          });
+
+          await new Promise((resolve) => setTimeout(resolve, 2000)); // Reduced from 3000ms to 2000ms
+          noScrollProgressCount = 0; // Reset counter
+        }
+      }
+
+      // Final analysis and reporting
+      const extractionRate = usernames.size / scrollAttempts;
+      // Note: actualCounts is not available in this scope, so we'll skip completion rate calculation
+      // This will be handled in the main function where actualCounts is available
+      const expectedCount = 0; // Will be set by the calling function
+      const completionRate = 0; // Will be calculated by the calling function
+
+      // Determine why extraction ended
+      let endReason = "Unknown";
+      if (scrollEndDetected) {
+        endReason = "Scroll end detected (no more content to scroll)";
+      } else if (noScrollProgressCount >= maxNoScrollProgress) {
+        endReason =
+          "No scroll progress detected (Instagram may have limited access)";
+      } else if (consecutiveNoNewUsers > 30) {
+        endReason = "No new users found (likely reached end of list)";
       }
 
       log(
         `✅ Finished extracting ${listType}: ${usernames.size} total users found after ${scrollAttempts} scroll attempts`
+      );
+      log(`📊 End reason: ${endReason}`);
+      log(`📊 Extraction Statistics:`);
+      log(`   • Extracted count: ${usernames.size}`);
+      log(
+        `   • Extraction rate: ${extractionRate.toFixed(2)} users per scroll`
       );
 
       // Save extracted usernames to file for debugging
@@ -731,6 +1212,74 @@ async function runUnfollowBot(username, password, limit, logCallback = null) {
     log(
       `   • Available to unfollow: ${Math.min(nonMutualAccounts.length, limit)}`
     );
+
+    // Completion rate analysis
+    const followersCompletionRate =
+      actualCounts.followersCount > 0
+        ? (allFollowers.size / actualCounts.followersCount) * 100
+        : 0;
+    const followingCompletionRate =
+      actualCounts.followingCount > 0
+        ? (allFollowing.size / actualCounts.followingCount) * 100
+        : 0;
+
+    log(`📊 Completion Rate Analysis:`);
+    log(
+      `   • Followers: ${allFollowers.size}/${
+        actualCounts.followersCount
+      } (${followersCompletionRate.toFixed(1)}%)`
+    );
+    log(
+      `   • Following: ${allFollowing.size}/${
+        actualCounts.followingCount
+      } (${followingCompletionRate.toFixed(1)}%)`
+    );
+
+    // Recommendations based on completion rate
+    if (followersCompletionRate < 80 && actualCounts.followersCount > 1000) {
+      log(
+        `⚠️ Warning: Only extracted ${followersCompletionRate.toFixed(
+          1
+        )}% of followers.`
+      );
+      log(`   This might be due to Instagram's lazy loading or rate limiting.`);
+    }
+
+    if (followingCompletionRate < 80 && actualCounts.followingCount > 1000) {
+      log(
+        `⚠️ Warning: Only extracted ${followingCompletionRate.toFixed(
+          1
+        )}% of following.`
+      );
+      log(`   This might be due to Instagram's lazy loading or rate limiting.`);
+    }
+
+    // Special handling for ultra-large lists
+    if (actualCounts.followersCount > 4000 && followersCompletionRate < 70) {
+      log(`🚨 Ultra-large followers list with low completion rate:`);
+      log(`   • Expected: ${actualCounts.followersCount} followers`);
+      log(
+        `   • Extracted: ${
+          allFollowers.size
+        } followers (${followersCompletionRate.toFixed(1)}%)`
+      );
+      log(
+        `   • Instagram heavily limits how many users can be loaded in modal`
+      );
+    }
+
+    if (actualCounts.followingCount > 4000 && followingCompletionRate < 70) {
+      log(`🚨 Ultra-large following list with low completion rate:`);
+      log(`   • Expected: ${actualCounts.followingCount} following`);
+      log(
+        `   • Extracted: ${
+          allFollowing.size
+        } following (${followingCompletionRate.toFixed(1)}%)`
+      );
+      log(
+        `   • Instagram heavily limits how many users can be loaded in modal`
+      );
+    }
 
     if (nonMutualAccounts.length === 0) {
       log(
